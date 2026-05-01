@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../api/client";
+import { GoogleLogin } from '@react-oauth/google';
 
 /* Shared truck SVG illustration */
 const TruckIllustration = () => (
@@ -69,6 +70,26 @@ const LoginPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/google", { token: credentialResponse.credential });
+      const type = res.data?.user?.type;
+      if (type === "Admin") navigate("/admin");
+      else if (type === "Transporter") navigate("/transporter");
+      else navigate("/user");
+    } catch (err) {
+      setError(err.response?.data?.message || "Google Login failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError("Google Sign In failed. Please try again.");
   };
 
   return (
@@ -173,6 +194,18 @@ const LoginPage = () => {
           </form>
 
           <div className="divider">or</div>
+          
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              theme="outline"
+              size="large"
+              shape="pill"
+              text="signin_with"
+            />
+          </div>
+
           <p className="auth-footer">
             Don't have an account? <Link to="/register">Create one →</Link>
           </p>

@@ -3,6 +3,7 @@ const Job = require("../models/Job");
 const City = require("../models/City");
 const auth = require("../middleware/auth");
 const mongoose = require("mongoose");
+const { sendJobPostedEmail } = require("../utils/emailService");
 
 const router = express.Router();
 
@@ -16,6 +17,7 @@ router.post("/", auth(["User"]), async (req, res, next) => {
       toAddress,
       imageUrl,
       description,
+      transportDate,
     } = req.body;
 
     let fromCityDoc;
@@ -55,7 +57,11 @@ router.post("/", auth(["User"]), async (req, res, next) => {
       toAddress,
       imageUrl,
       description,
+      transportDate
     });
+
+    // Send email asynchronously without blocking the response
+    sendJobPostedEmail(req.user, job).catch(console.error);
 
     res.status(201).json(job);
   } catch (err) {

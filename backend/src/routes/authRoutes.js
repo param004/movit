@@ -2,6 +2,9 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const Profile = require("../models/Profile");
+const { OAuth2Client } = require("google-auth-library");
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const router = express.Router();
 
@@ -95,6 +98,83 @@ router.post("/login", async (req, res, next) => {
       });
   } catch (err) {
     next(err);
+  }
+});
+
+router.post("/google", async (req, res, next) => {
+  try {
+    const { token, type } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ message: "Google token is required" });
+    }
+
+    // Verify the Google token
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID, 
+      // Important: Use your actual client ID here, or pass it from env.
+      // If we don't pass an audience, it still verifies the signature, but audience verification is safer.
+    });
+    const payload = ticket.getPayload();
+    const { email, sub: googleId } = payload;
+
+    if (!email) {
+      return res.status(400).json({ message: "No email returned from Google" });
+    }
+
+    let user = await User.findOne({ email: email.toLowerCase() });
+
+    if (user) {
+      // User exists, log them in
+      const jwtToken = signToken(user);
+      return res
+        .cookie("token", jwtToken, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: false,
+        })
+        .json({
+          user: {
+            id: user._id,
+            email: user.email,
+            type: user.type,
+          },
+        });
+    } else {
+      // User doesn't exist
+      if (!type) {
+        // Came from Login page, where they just clicked "Sign in with Google" but have no account
+        return res.status(404).json({ message: "Account not found. Please create one by selecting a role on the register page." });
+      }
+
+      // Came from Register page, create the account
+      user = await User.create({
+        email: email.toLowerCase(),
+        provider: 'google',
+        googleId,
+        type,
+      });
+
+      const jwtToken = signToken(user);
+      return res
+        .cookie("token", jwtToken, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: false,
+        })
+        .status(201)
+        .json({
+          user: {
+            id: user._id,
+            email: user.email,
+            type: user.type,
+          },
+        });
+    }
+  } catch (err) {
+    console.error("[authRoutes] Google Auth Error:", err);
+    res.status(401).json({ message: "Invalid Google token" });
   }
 });
 

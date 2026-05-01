@@ -2,6 +2,7 @@ const express = require("express");
 const Bid = require("../models/Bid");
 const Job = require("../models/Job");
 const auth = require("../middleware/auth");
+const { sendBidAppliedEmail, sendReceiptEmail, sendBidAcceptedToTransporterEmail } = require("../utils/emailService");
 
 const router = express.Router();
 
@@ -9,7 +10,7 @@ const router = express.Router();
 router.post("/:jobId", auth(["Transporter"]), async (req, res, next) => {
   try {
     const { amount, description } = req.body;
-    const job = await Job.findById(req.params.jobId);
+    const job = await Job.findById(req.params.jobId).populate("user");
     if (!job) return res.status(404).json({ message: "Job not found" });
     if (job.isCanceled || job.isCompleted) {
       return res.status(400).json({ message: "Job is not open for bids" });
@@ -20,6 +21,10 @@ router.post("/:jobId", auth(["Transporter"]), async (req, res, next) => {
       amount,
       description,
     });
+
+    // Send email to job owner asynchronously
+    sendBidAppliedEmail(job.user, job, req.user, bid).catch(console.error);
+
     res.status(201).json(bid);
   } catch (err) {
     next(err);
@@ -55,11 +60,17 @@ router.get("/job/:jobId", auth(), async (req, res, next) => {
 // Accept a bid (job owner)
 router.post("/:bidId/accept", auth(["User"]), async (req, res, next) => {
   try {
-    const bid = await Bid.findById(req.params.bidId).populate("job");
+    const bid = await Bid.findById(req.params.bidId)
+      .populate({
+        path: "job",
+        populate: { path: "user" }
+      })
+      .populate("user");
+      
     if (!bid) return res.status(404).json({ message: "Bid not found" });
 
     // Convert to strings for comparison
-    if (bid.job.user.toString() !== req.user._id.toString()) {
+    if (bid.job.user._id.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Not your job" });
     }
 
@@ -70,6 +81,11 @@ router.post("/:bidId/accept", auth(["User"]), async (req, res, next) => {
     );
     bid.isAccepted = true;
     await bid.save();
+
+    // Send receipt email to the job owner asynchronously
+    sendReceiptEmail(bid.job.user, bid.job, bid.user, bid).catch(console.error);
+    // Send acceptance email to the transporter asynchronously
+    sendBidAcceptedToTransporterEmail(bid.user, bid.job, bid.job.user, bid).catch(console.error);
 
     res.json(bid);
   } catch (err) {

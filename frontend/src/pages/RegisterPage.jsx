@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../api/client";
+import { GoogleLogin } from '@react-oauth/google';
 
 const LogoSvg = () => (
   <div className="logo-icon">
@@ -80,6 +81,31 @@ const RegisterPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError("");
+    if (!form.type) {
+      setError("Please select a role (User or Transporter) before signing up with Google.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/google", { 
+        token: credentialResponse.credential,
+        type: form.type
+      });
+      setSuccess(true);
+      setTimeout(() => navigate("/login"), 2200);
+    } catch (err) {
+      setError(err.response?.data?.message || "Google Sign Up failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError("Google Sign Up failed. Please try again.");
   };
 
   return (
@@ -252,6 +278,18 @@ const RegisterPage = () => {
                 </button>
               </form>
               <div className="divider">or</div>
+              
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  theme="outline"
+                  size="large"
+                  shape="pill"
+                  text="signup_with"
+                />
+              </div>
+
               <p className="auth-footer">
                 Already have an account? <Link to="/login">Sign in →</Link>
               </p>

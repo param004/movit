@@ -12,7 +12,19 @@ const userSchema = new mongoose.Schema(
     },
     passwordHash: {
       type: String,
-      required: true,
+      required: function() {
+        // Password is required only if provider is 'local'
+        return this.provider === 'local';
+      },
+    },
+    provider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local'
+    },
+    googleId: {
+      type: String,
+      sparse: true,
     },
     type: {
       type: String,
