@@ -8,6 +8,14 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const router = express.Router();
 
+const isProduction = process.env.NODE_ENV === "production";
+
+const authCookieOptions = {
+  httpOnly: true,
+  sameSite: isProduction ? "none" : "lax",
+  secure: isProduction,
+};
+
 const signToken = (user) => {
   return jwt.sign(
     { id: user._id, type: user.type },
@@ -49,11 +57,7 @@ router.post("/register", async (req, res, next) => {
 
     const token = signToken(user);
     res
-      .cookie("token", token, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: false,
-      })
+      .cookie("token", token, authCookieOptions)
       .status(201)
       .json({
         user: {
@@ -71,9 +75,24 @@ router.post("/login", async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    if (user.provider === "google" && !user.passwordHash) {
+      return res.status(400).json({
+        message: "This account uses Google Sign-In. Please continue with Google.",
+      });
     }
 
     const ok = await user.comparePassword(password);
@@ -84,11 +103,7 @@ router.post("/login", async (req, res, next) => {
     const token = signToken(user);
 
     res
-      .cookie("token", token, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: false,
-      })
+      .cookie("token", token, authCookieOptions)
       .json({
         user: {
           id: user._id,
@@ -129,11 +144,7 @@ router.post("/google", async (req, res, next) => {
       // User exists, log them in
       const jwtToken = signToken(user);
       return res
-        .cookie("token", jwtToken, {
-          httpOnly: true,
-          sameSite: "lax",
-          secure: false,
-        })
+        .cookie("token", jwtToken, authCookieOptions)
         .json({
           user: {
             id: user._id,
@@ -158,11 +169,7 @@ router.post("/google", async (req, res, next) => {
 
       const jwtToken = signToken(user);
       return res
-        .cookie("token", jwtToken, {
-          httpOnly: true,
-          sameSite: "lax",
-          secure: false,
-        })
+        .cookie("token", jwtToken, authCookieOptions)
         .status(201)
         .json({
           user: {
@@ -292,7 +299,7 @@ router.put("/profile", async (req, res, next) => {
 
 router.post("/logout", (req, res) => {
   res
-    .clearCookie("token")
+    .clearCookie("token", authCookieOptions)
     .json({ message: "Logged out" });
 });
 

@@ -36,6 +36,14 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.methods.comparePassword = async function (plain) {
+  if (typeof plain !== "string") {
+    return false;
+  }
+
+  if (typeof this.passwordHash !== "string" || !this.passwordHash) {
+    return false;
+  }
+
   return bcrypt.compare(plain, this.passwordHash);
 };
 
