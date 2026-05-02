@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { api } from "../api/client";
 import { GoogleLogin } from '@react-oauth/google';
+import { isGoogleAuthConfigured } from "../config/googleAuth";
 
 /* Shared truck SVG illustration */
 const TruckIllustration = () => (
@@ -194,17 +195,23 @@ const LoginPage = () => {
           </form>
 
           <div className="divider">or</div>
-          
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              theme="outline"
-              size="large"
-              shape="pill"
-              text="signin_with"
-            />
-          </div>
+
+          {isGoogleAuthConfigured ? (
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                theme="outline"
+                size="large"
+                shape="pill"
+                text="signin_with"
+              />
+            </div>
+          ) : (
+            <div className="alert alert-error" role="alert" style={{ marginBottom: '20px' }}>
+              <span>Google Sign-In is not configured for this deployment.</span>
+            </div>
+          )}
 
           <p className="auth-footer">
             Don't have an account? <Link to="/register">Create one →</Link>
