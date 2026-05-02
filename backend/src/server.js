@@ -56,8 +56,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`MoveIt backend listening on port ${PORT}`);
-});
+// Only skip app.listen if explicitly running in a serverless environment like Netlify Functions
+if (!process.env.NETLIFY) {
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => {
+    console.log(`MoveIt backend listening on port ${PORT}`);
+  });
+}
+
+module.exports = app;
 
